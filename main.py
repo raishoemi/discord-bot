@@ -1,14 +1,17 @@
 from dataclasses import dataclass
 import json
 from typing import Callable, Dict, List
-import discord
 import asyncio
 import os
 import random
 import logging
 import sys
 import time
+import discord
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -162,7 +165,8 @@ def main():
     intents.members = True
     intents.voice_states = True
     client = MyClient(intents=intents, enable_debug_events=True)
-    client.run('OTA3NzAyNDE1NjQ4NzUxNjQ4.YYrBwA.sm4gTfelngIocspzYxszcKjSxdI')
+    api_key = os.environ.get('API_KEY')
+    client.run(api_key)
 
 
 # https://discordapp.com/oauth2/authorize?client_id=907702415648751648&scope=bot
