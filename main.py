@@ -9,6 +9,7 @@ import sys
 import time
 import discord
 from dotenv import load_dotenv
+from threading import Timer
 
 
 load_dotenv()
@@ -17,10 +18,12 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 SERVER_NAME = 'הסלון'
 # SERVER_NAME = 'bot test'
-CHANNELS = ['General']
+VOICE_CHANNEL_NAME = 'לאומנות'
 RANDOM_MEDIA_VOICELINES_PATH = 'P:/Projects/discord-bot/media/random_voicelines'
 LEAGUE_MEDIA_VOICELINES_PATH = 'P:/Projects/discord-bot/media/lol_voicelines'
+SUNO_MEDIA_VOICELINES_PATH = 'P:/Projects/discord-bot/media/suno_songs'
 YARON_MEDIA_VOICELINES_PATH = 'P:/Projects/discord-bot/media/yaron'
+GUY_MEDIA_VOICELINES_PATH = 'P:/Projects/discord-bot/media/guy'
 FARTS_PATH = 'P:/Projects/discord-bot/media/farts'
 RANDOM_MEDIA_VOICELINES_RANDOM_OFFSET = range(-300, 300)
 RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS = 6000 * 2  # 60 * 60
@@ -41,14 +44,16 @@ class MyClient(discord.Client):
         super().__init__(loop=loop, **options)
         self.voice_quiz: VoiceQuiz = None
         self.yaron_entered_today = False
-        self.yaron_user_id = '117352629121712134'
         self.edan_entered_today = False
+        self.guy_entered_today = False
+        self.yaron_user_id = '117352629121712134'
         self.edan_user_id = '366252229822251009'
         self.shai_user_ud = '116912999242924038'
+        self.guy_user_id = '98354630139863040'
 
     def get_voice_channel(self) -> discord.VoiceChannel:
         for channel in self.get_all_channels():
-            if channel.guild.name == SERVER_NAME and channel.name == 'General' and channel.type == discord.ChannelType.voice:
+            if channel.guild.name == SERVER_NAME and channel.name == VOICE_CHANNEL_NAME and channel.type == discord.ChannelType.voice:
                 return channel
         logging.error('Voice channel not found')
         raise ValueError()
@@ -82,6 +87,13 @@ class MyClient(discord.Client):
         if message.author == self.user:
             return
         if message.guild.name == SERVER_NAME:
+            if message.content.startswith('!timer'):
+                if len(message.content.split(' ')) == 2:
+                    timer_seconds = message.content.split(' ')[1]
+                    if timer_seconds.isdigit():
+                        await message.channel.send(f'{message.author.display_name} your {timer_seconds} seconds timer is starting!')
+                        await asyncio.sleep(int(timer_seconds))
+                        await message.channel.send(f'{message.author.display_name} your {timer_seconds} seconds timer is up!')
             if message.channel.name == 'top' and message.content == '!lol':
                 if self.voice_quiz:
                     await message.channel.send('LOL voice challenge already in progress')
@@ -117,6 +129,12 @@ class MyClient(discord.Client):
                         self.voice_quiz.answers[author].append(guess)
                     else:
                         self.voice_quiz.answers[author] = [guess]
+            elif message.content == '!randomsong' and message.channel.name == 'top':
+                random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
+                correct_answer = random_suno_song.split("/")[-1].split("_")[0]
+                voice_channel = self.get_voice_channel()
+                await self.play_audio(voice_channel, random_suno_song)
+
 
     async def on_socket_raw_receive(self, msg: str):
         try:
@@ -126,6 +144,8 @@ class MyClient(discord.Client):
                 self.yaron_entered_today = False
             if self.edan_entered_today and (current_hour <= 14 and current_hour >= 3):
                 self.edan_entered_today = False
+            if self.guy_entered_today and (current_hour <= 14 and current_hour >= 3):
+                self.guy_entered_today = False
             if 't' not in event or event['t'] != 'VOICE_STATE_UPDATE':
                 return
             if 'd' not in event or 'channel_id' not in event['d'] or event['d']['channel_id'] == None or 'member' not in event['d'] or 'user' not in event['d']['member']:
@@ -153,6 +173,15 @@ class MyClient(discord.Client):
                     await asyncio.sleep(3)
                     random_fart = f"{FARTS_PATH}/{random.choice([x for x in os.listdir(FARTS_PATH)])}"
                     await self.play_audio(self.get_voice_channel(), random_fart)
+            elif entered_user_id == self.guy_user_id:
+                if len(self.get_voice_channel().members) < 1:
+                    return
+                if (current_hour <= 14 and current_hour >= 3):
+                    return
+                if not self.guy_entered_today:
+                    self.guy_entered_today = True
+                    await asyncio.sleep(3)
+                    await self.play_audio(self.get_voice_channel(), f'{GUY_MEDIA_VOICELINES_PATH}/not_guy_gay.mp3')
         except:
             pass
 
