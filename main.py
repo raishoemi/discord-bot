@@ -9,10 +9,7 @@ import sys
 import time
 import discord
 from dotenv import load_dotenv
-from threading import Timer
 from pydub import AudioSegment
-import subprocess
-import re
 
 
 load_dotenv()
@@ -35,6 +32,8 @@ RANDOM_MEDIA_VOICELINES_RANDOM_OFFSET = range(-300, 300)
 RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS = 6000 * 2  # 60 * 60
 LOL_VOICE_QUIZ_MAX_GUESSES = 2
 GENERAL_VOICE_CHANNEL_ID = "782317681973264419"
+RANDOM_SONG_COMMANDS = ["!randomsong", "!rs"]
+ZDAYEN_COMMANDS = ["!zdayen", "!zd"]
 # GENERAL_VOICE_CHANNEL_ID = '947596574031220740' # BOT TEST
 
 
@@ -140,9 +139,11 @@ class MyClient(discord.Client):
                         await message.channel.send(
                             f"{message.author.display_name} your {timer_seconds} seconds timer is up!"
                         )
-            if message.channel.name == "top" and message.content == "!zdayen":
+            if message.channel.name == "top" and message.content in ZDAYEN_COMMANDS:
                 voice_channel = self.get_voice_channel()
-                voice_client = discord.utils.get(self.voice_clients, guild=voice_channel.guild)
+                voice_client = discord.utils.get(
+                    self.voice_clients, guild=voice_channel.guild
+                )
                 if voice_client:
                     self.loop.create_task(voice_client.disconnect())
 
@@ -196,7 +197,10 @@ class MyClient(discord.Client):
                     else:
                         self.voice_quiz.answers[author] = [guess]
 
-            elif message.content == "!randomsong" and message.channel.name == "top":
+            elif (
+                message.content in RANDOM_SONG_COMMANDS
+                and message.channel.name == "top"
+            ):
                 random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
                 voice_channel = self.get_voice_channel()
                 await self.play_audio(voice_channel, random_suno_song)
@@ -216,7 +220,7 @@ class MyClient(discord.Client):
                     start_time=random_starting_time,
                     start_duration=2,
                     song_name=song_name,
-                    hints=0
+                    hints=0,
                 )
                 channel: discord.TextChannel = message.channel
                 voice_channel = self.get_voice_channel()
@@ -242,7 +246,12 @@ class MyClient(discord.Client):
                     self.suno_quiz.start_duration += 1
                     self.suno_quiz.start_time -= 1
                     self.suno_quiz.hints += 1
-                    await self.play_audio(voice_channel, self.suno_quiz.song_path, start_at=self.suno_quiz.start_time, duration=self.suno_quiz.start_duration)
+                    await self.play_audio(
+                        voice_channel,
+                        self.suno_quiz.song_path,
+                        start_at=self.suno_quiz.start_time,
+                        duration=self.suno_quiz.start_duration,
+                    )
                 elif message.content == "!giveup":
                     await message.channel.send(
                         f"The correct answer was {self.suno_quiz.song_name}. You used {self.suno_quiz.hints} hints"
@@ -320,7 +329,7 @@ def main():
     intents.members = True
     intents.voice_states = True
     client = MyClient(intents=intents, enable_debug_events=True)
-    api_key = os.environ.get('DISCORD_TOKEN')
+    api_key = os.environ.get("DISCORD_TOKEN")
     client.run(api_key)
 
 
