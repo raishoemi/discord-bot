@@ -30,9 +30,13 @@ GUY_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/guy"
 FARTS_PATH = "P:/Projects/discord-bot/media/farts"
 RANDOM_MEDIA_VOICELINES_RANDOM_OFFSET = range(-300, 300)
 RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS = 6000 * 2  # 60 * 60
+IMPORTANT_IMAGE_RANDOM_OFFSET = range(-60 * 60 * 3, 60 * 60 * 3)  # 3 hours
+IMPORTANT_IMAGE_SLEEP_TIME_SECONDS = 50 * 60 * 60
 LOL_VOICE_QUIZ_MAX_GUESSES = 2
 GENERAL_VOICE_CHANNEL_ID = "782317681973264419"
+SHULHAN_AGOL_TEXT_CHANNEL_ID = 782317681973264417
 RANDOM_SONG_COMMANDS = ["!randomsong", "!rs"]
+RANDOM_SONG_WITH_AUTOPLAY_COMMANDS = ["!randomsongauto", "!rs_auto"]
 ZDAYEN_COMMANDS = ["!zdayen", "!zd"]
 # GENERAL_VOICE_CHANNEL_ID = '947596574031220740' # BOT TEST
 
@@ -84,12 +88,19 @@ class MyClient(discord.Client):
         after: Callable[[], None] = None,
         start_at: int = 0,
         duration: Optional[int] = None,
+        stay_in_voice: bool = False,
     ):
-        voice_client: discord.VoiceClient = await voice_channel.connect()
+        voice_client: discord.VoiceClient = discord.utils.get(
+            self.voice_clients, guild=voice_channel.guild
+        )
+        if not voice_client:
+            voice_client: discord.VoiceClient = await voice_channel.connect()
 
         def after_callback(e):
-            self.loop.create_task(voice_client.disconnect())
-            if after:
+            if not stay_in_voice:
+                self.loop.create_task(voice_client.disconnect())
+            self.loop.create_task(self.change_presence(activity=None))
+            if voice_client.is_connected() and after:
                 after()
 
         if not duration:
@@ -109,7 +120,29 @@ class MyClient(discord.Client):
         )
         logging.info(f"Playing {audio_path}")
 
-    async def on_ready(self):
+    async def play_random_suno_songs_with_autoplay(self):
+        voice_channel = self.get_voice_channel()
+        try:
+            random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
+
+            song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
+            await self.change_presence(activity=discord.Game(name=song_name))
+
+            await self.play_audio(
+                voice_channel,
+                random_suno_song,
+                after=lambda: self.loop.create_task(
+                    self.play_random_suno_songs_with_autoplay()
+                ),
+                stay_in_voice=True,
+            )
+        except Exception as e:
+            logging.error(
+                f"Error in playing random suno songs with autoplay: {e}", exc_info=True
+            )
+            pass
+
+    async def play_random_voicelines(self):
         voice_channel = self.get_voice_channel()
         while True:
             try:
@@ -119,10 +152,35 @@ class MyClient(discord.Client):
                 await asyncio.sleep(
                     RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS + sleep_random_offset
                 )
+
+                # Play random voiceline
                 random_file = f"{RANDOM_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(RANDOM_MEDIA_VOICELINES_PATH)])}"
                 await self.play_audio(voice_channel, random_file)
             except Exception as e:
+                logging.error(f"Error in play_random_voicelines loop: {e}")
                 pass
+
+    async def send_important_image(self):
+        text_channel = self.get_channel(SHULHAN_AGOL_TEXT_CHANNEL_ID)
+        while True:
+            try:
+                sleep_random_offset = random.choice(IMPORTANT_IMAGE_RANDOM_OFFSET)
+                await asyncio.sleep(
+                    IMPORTANT_IMAGE_SLEEP_TIME_SECONDS + sleep_random_offset
+                )
+
+                important_image_path = (
+                    f"P:/Projects/discord-bot/media/important_edan50000.jpg"
+                )
+                await text_channel.send(file=discord.File(important_image_path))
+            except Exception as e:
+                logging.error(f"Error in sending the important image: {e}")
+                pass
+
+    async def on_ready(self):
+        self.loop.create_task(self.change_presence(activity=None))
+        self.loop.create_task(self.play_random_voicelines())
+        self.loop.create_task(self.send_important_image())
 
     async def on_message(self, message: discord.Message):
         if message.author == self.user:
@@ -145,7 +203,8 @@ class MyClient(discord.Client):
                     self.voice_clients, guild=voice_channel.guild
                 )
                 if voice_client:
-                    self.loop.create_task(voice_client.disconnect())
+                    await voice_client.disconnect()
+                    await self.change_presence(activity=None)
 
             if message.channel.name == "top" and message.content == "!lol":
                 if self.voice_quiz:
@@ -203,7 +262,15 @@ class MyClient(discord.Client):
             ):
                 random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
                 voice_channel = self.get_voice_channel()
+                song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
+                await self.change_presence(activity=discord.Game(name=song_name))
                 await self.play_audio(voice_channel, random_suno_song)
+
+            elif (
+                message.content in RANDOM_SONG_WITH_AUTOPLAY_COMMANDS
+                and message.channel.name == "top"
+            ):
+                await self.play_random_suno_songs_with_autoplay()
 
             elif message.channel.name == "top" and message.content == "!sunoquiz":
                 if self.suno_quiz:
