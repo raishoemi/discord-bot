@@ -24,7 +24,7 @@ SERVER_NAME = "הסלון"
 VOICE_CHANNEL_NAME = "לאומנות"
 RANDOM_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/random_voicelines"
 LEAGUE_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/lol_voicelines"
-SUNO_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/suno_songs"
+SUNO_MEDIA_VOICELINES_PATH = "D:/My Drive/SunoSongs"
 YARON_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/yaron"
 GUY_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/guy"
 FARTS_PATH = "P:/Projects/discord-bot/media/farts"
@@ -35,8 +35,7 @@ IMPORTANT_IMAGE_SLEEP_TIME_SECONDS = 50 * 60 * 60
 LOL_VOICE_QUIZ_MAX_GUESSES = 2
 GENERAL_VOICE_CHANNEL_ID = "782317681973264419"
 SHULHAN_AGOL_TEXT_CHANNEL_ID = 782317681973264417
-RANDOM_SONG_COMMANDS = ["!randomsong", "!rs"]
-RANDOM_SONG_WITH_AUTOPLAY_COMMANDS = ["!randomsongauto", "!rs_auto"]
+RANDOM_SONG_WITH_AUTOPLAY_COMMAND = "!rs_auto"
 ZDAYEN_COMMANDS = ["!zdayen", "!zd"]
 # GENERAL_VOICE_CHANNEL_ID = '947596574031220740' # BOT TEST
 
@@ -120,10 +119,11 @@ class MyClient(discord.Client):
         )
         logging.info(f"Playing {audio_path}")
 
-    async def play_random_suno_songs_with_autoplay(self):
+    async def play_random_suno_songs_with_autoplay(self, folder_name:  str):
         voice_channel = self.get_voice_channel()
         try:
-            random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
+            songs_path = f"{SUNO_MEDIA_VOICELINES_PATH}/{folder_name}"
+            random_suno_song = f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
 
             song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
             await self.change_presence(activity=discord.Game(name=song_name))
@@ -257,20 +257,14 @@ class MyClient(discord.Client):
                         self.voice_quiz.answers[author] = [guess]
 
             elif (
-                message.content in RANDOM_SONG_COMMANDS
+                message.content.startswith(RANDOM_SONG_WITH_AUTOPLAY_COMMAND)
                 and message.channel.name == "top"
             ):
-                random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)])}"
-                voice_channel = self.get_voice_channel()
-                song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
-                await self.change_presence(activity=discord.Game(name=song_name))
-                await self.play_audio(voice_channel, random_suno_song)
-
-            elif (
-                message.content in RANDOM_SONG_WITH_AUTOPLAY_COMMANDS
-                and message.channel.name == "top"
-            ):
-                await self.play_random_suno_songs_with_autoplay()
+                if len(message.content.split(" ")) != 2:
+                    await message.channel.send("Usage: !rs_auto <folder_name>")
+                    return
+                folder_name = message.content.split(" ")[1]
+                await self.play_random_suno_songs_with_autoplay(folder_name)
 
             elif message.channel.name == "top" and message.content == "!sunoquiz":
                 if self.suno_quiz:
