@@ -21,6 +21,8 @@ logging.basicConfig(
 )
 SERVER_NAME = "הסלון"
 # SERVER_NAME = 'bot test'
+GENERAL_VOICE_CHANNEL_ID = "782317681973264419"
+# GENERAL_VOICE_CHANNEL_ID = '947596574031220740' # BOT TEST
 VOICE_CHANNEL_NAME = "לאומנות"
 RANDOM_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/random_voicelines"
 LEAGUE_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/lol_voicelines"
@@ -29,15 +31,21 @@ YARON_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/yaron"
 GUY_MEDIA_VOICELINES_PATH = "P:/Projects/discord-bot/media/guy"
 FARTS_PATH = "P:/Projects/discord-bot/media/farts"
 RANDOM_MEDIA_VOICELINES_RANDOM_OFFSET = range(-300, 300)
-RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS = 6000 * 2  # 60 * 60
+RANDOM_MEDIA_VOICELINES_SLEEP_TIME_SECONDS = 6000 * 2
 IMPORTANT_IMAGE_RANDOM_OFFSET = range(-60 * 60 * 3, 60 * 60 * 3)  # 3 hours
 IMPORTANT_IMAGE_SLEEP_TIME_SECONDS = 50 * 60 * 60
 LOL_VOICE_QUIZ_MAX_GUESSES = 2
-GENERAL_VOICE_CHANNEL_ID = "782317681973264419"
 SHULHAN_AGOL_TEXT_CHANNEL_ID = 782317681973264417
 RANDOM_SONG_WITH_AUTOPLAY_COMMAND = "!rs_auto"
 ZDAYEN_COMMANDS = ["!zdayen", "!zd"]
-# GENERAL_VOICE_CHANNEL_ID = '947596574031220740' # BOT TEST
+
+
+@dataclass
+class UserIDs:
+    yaron: str = "782317681973264419"
+    edan: str = "366252229822251009"
+    shai: str = "116912999242924038"
+    guy: str = "98354630139863040"
 
 
 @dataclass
@@ -64,10 +72,6 @@ class MyClient(discord.Client):
         self.yaron_entered_today = False
         self.edan_entered_today = False
         self.guy_entered_today = False
-        self.yaron_user_id = "117352629121712134"
-        self.edan_user_id = "366252229822251009"
-        self.shai_user_ud = "116912999242924038"
-        self.guy_user_id = "98354630139863040"
 
     def get_voice_channel(self) -> discord.VoiceChannel:
         for channel in self.get_all_channels():
@@ -117,13 +121,18 @@ class MyClient(discord.Client):
             ),
             after=after_callback,
         )
-        logging.info(f"Playing {audio_path}")
+        try:
+            logging.info(f"Playing {audio_path}")
+        except:
+            pass
 
-    async def play_random_suno_songs_with_autoplay(self, folder_name:  str):
+    async def play_random_suno_songs_with_autoplay(self, folder_name: str):
         voice_channel = self.get_voice_channel()
         try:
             songs_path = f"{SUNO_MEDIA_VOICELINES_PATH}/{folder_name}"
-            random_suno_song = f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
+            random_suno_song = (
+                f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
+            )
 
             song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
             await self.change_presence(activity=discord.Game(name=song_name))
@@ -132,7 +141,7 @@ class MyClient(discord.Client):
                 voice_channel,
                 random_suno_song,
                 after=lambda: self.loop.create_task(
-                    self.play_random_suno_songs_with_autoplay()
+                    self.play_random_suno_songs_with_autoplay(folder_name)
                 ),
                 stay_in_voice=True,
             )
@@ -183,142 +192,129 @@ class MyClient(discord.Client):
         self.loop.create_task(self.send_important_image())
 
     async def on_message(self, message: discord.Message):
-        if message.author == self.user:
+        if (
+            message.author == self.user
+            or message.guild.name != SERVER_NAME
+            or message.channel.name != "top"
+        ):
             return
-        if message.guild.name == SERVER_NAME:
-            if message.content.startswith("!timer"):
-                if len(message.content.split(" ")) == 2:
-                    timer_seconds = message.content.split(" ")[1]
-                    if timer_seconds.isdigit():
-                        await message.channel.send(
-                            f"{message.author.display_name} your {timer_seconds} seconds timer is starting!"
-                        )
-                        await asyncio.sleep(int(timer_seconds))
-                        await message.channel.send(
-                            f"{message.author.display_name} your {timer_seconds} seconds timer is up!"
-                        )
-            if message.channel.name == "top" and message.content in ZDAYEN_COMMANDS:
-                voice_channel = self.get_voice_channel()
-                voice_client = discord.utils.get(
-                    self.voice_clients, guild=voice_channel.guild
-                )
-                if voice_client:
-                    await voice_client.disconnect()
-                    await self.change_presence(activity=None)
 
-            if message.channel.name == "top" and message.content == "!lol":
-                if self.voice_quiz:
-                    await message.channel.send(
-                        "LOL voice challenge already in progress"
-                    )
-                    return
-                channel: discord.TextChannel = message.channel
-                message = await channel.send(
-                    f"You each have {LOL_VOICE_QUIZ_MAX_GUESSES} attempts to guess the champion's name! (!giveup, !replay)"
-                )
-                random_voiceline = f"{LEAGUE_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(LEAGUE_MEDIA_VOICELINES_PATH)])}"
-                correct_answer = random_voiceline.split("/")[-1].split("_")[0]
-                self.voice_quiz = VoiceQuiz(
-                    voiceline_path=random_voiceline,
-                    correct_answer=correct_answer,
-                    answers={},
-                )
+        if message.content in ZDAYEN_COMMANDS:
+            voice_channel = self.get_voice_channel()
+            voice_client = discord.utils.get(
+                self.voice_clients, guild=voice_channel.guild
+            )
+            if voice_client:
+                await voice_client.disconnect()
+                await self.change_presence(activity=None)
+
+        elif message.content == "!lol":
+            if self.voice_quiz:
+                await message.channel.send("LOL voice challenge already in progress")
+                return
+            channel: discord.TextChannel = message.channel
+            message = await channel.send(
+                f"You each have {LOL_VOICE_QUIZ_MAX_GUESSES} attempts to guess the champion's name! (!giveup, !replay)"
+            )
+            random_voiceline = f"{LEAGUE_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(LEAGUE_MEDIA_VOICELINES_PATH)])}"
+            correct_answer = random_voiceline.split("/")[-1].split("_")[0]
+            self.voice_quiz = VoiceQuiz(
+                voiceline_path=random_voiceline,
+                correct_answer=correct_answer,
+                answers={},
+            )
+            voice_channel = self.get_voice_channel()
+            await self.play_audio(voice_channel, self.voice_quiz.voiceline_path)
+            logging.info(
+                f"Started voice quiz with voiceline: {self.voice_quiz.voiceline_path}"
+            )
+        elif self.voice_quiz:
+            author = message.author
+            guess = message.content
+            if guess == "!replay":
                 voice_channel = self.get_voice_channel()
                 await self.play_audio(voice_channel, self.voice_quiz.voiceline_path)
-                logging.info(
-                    f"Started voice quiz with voiceline: {self.voice_quiz.voiceline_path}"
+            elif guess == "!giveup":
+                await message.channel.send(
+                    f"The correct answer was {self.voice_quiz.correct_answer}"
                 )
-            elif self.voice_quiz and message.channel.name == "top":
-                author = message.author
-                guess = message.content
-                if guess == "!replay":
-                    voice_channel = self.get_voice_channel()
-                    await self.play_audio(voice_channel, self.voice_quiz.voiceline_path)
-                elif guess == "!giveup":
-                    await message.channel.send(
-                        f"The correct answer was {self.voice_quiz.correct_answer}"
-                    )
-                    self.voice_quiz = None
-                elif (
-                    author in self.voice_quiz.answers
-                    and len(self.voice_quiz.answers[author])
-                    >= LOL_VOICE_QUIZ_MAX_GUESSES
-                ):
-                    await message.channel.send(
-                        f"{author.mention} you already answered {LOL_VOICE_QUIZ_MAX_GUESSES} times, don't spoil the game for others!"
-                    )
-                elif guess.lower() == self.voice_quiz.correct_answer.lower():
-                    await message.channel.send(f"{author.mention} You are correct!")
-                    self.voice_quiz = None
-                else:
-                    if author in self.voice_quiz.answers:
-                        self.voice_quiz.answers[author].append(guess)
-                    else:
-                        self.voice_quiz.answers[author] = [guess]
-
+                self.voice_quiz = None
             elif (
-                message.content.startswith(RANDOM_SONG_WITH_AUTOPLAY_COMMAND)
-                and message.channel.name == "top"
+                author in self.voice_quiz.answers
+                and len(self.voice_quiz.answers[author]) >= LOL_VOICE_QUIZ_MAX_GUESSES
             ):
-                if len(message.content.split(" ")) != 2:
-                    await message.channel.send("Usage: !rs_auto <folder_name>")
-                    return
-                folder_name = message.content.split(" ")[1]
-                await self.play_random_suno_songs_with_autoplay(folder_name)
+                await message.channel.send(
+                    f"{author.mention} you already answered {LOL_VOICE_QUIZ_MAX_GUESSES} times, don't spoil the game for others!"
+                )
+            elif guess.lower() == self.voice_quiz.correct_answer.lower():
+                await message.channel.send(f"{author.mention} You are correct!")
+                self.voice_quiz = None
+            else:
+                if author in self.voice_quiz.answers:
+                    self.voice_quiz.answers[author].append(guess)
+                else:
+                    self.voice_quiz.answers[author] = [guess]
 
-            elif message.channel.name == "top" and message.content == "!sunoquiz":
-                if self.suno_quiz:
-                    await message.channel.send("Suno voice quiz already in progress")
-                    return
-                song_name = random.choice(
-                    [x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)]
-                )
-                random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{song_name}"
-                audio_length = AudioSegment.from_file(random_suno_song).duration_seconds
-                random_starting_time = random.randint(10, int(audio_length) - 10)
-                self.suno_quiz = RandomSongQuiz(
-                    song_path=random_suno_song,
-                    start_time=random_starting_time,
-                    start_duration=2,
-                    song_name=song_name,
-                    hints=0,
-                )
-                channel: discord.TextChannel = message.channel
-                voice_channel = self.get_voice_channel()
+        elif message.content.startswith(RANDOM_SONG_WITH_AUTOPLAY_COMMAND):
+            if len(message.content.split(" ")) != 2:
+                await message.channel.send("Usage: !rs_auto <folder_name>")
+                return
+            folder_name = message.content.split(" ")[1]
+            await self.play_random_suno_songs_with_autoplay(folder_name)
+
+        elif message.content == "!sunoquiz":
+            if self.suno_quiz:
+                await message.channel.send("Suno voice quiz already in progress")
+                return
+            song_name = random.choice(
+                [x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)]
+            )
+            random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{song_name}"
+            audio_length = AudioSegment.from_file(random_suno_song).duration_seconds
+            random_starting_time = random.randint(10, int(audio_length) - 10)
+            self.suno_quiz = RandomSongQuiz(
+                song_path=random_suno_song,
+                start_time=random_starting_time,
+                start_duration=2,
+                song_name=song_name,
+                hints=0,
+            )
+            channel: discord.TextChannel = message.channel
+            voice_channel = self.get_voice_channel()
+            await self.play_audio(
+                voice_channel,
+                self.suno_quiz.song_path,
+                start_at=self.suno_quiz.start_time,
+                duration=self.suno_quiz.start_duration,
+            )
+            logging.info(
+                f"Started suno voice quiz with voiceline: {self.suno_quiz.song_path}. The commands are: !skip, !replay, !giveup"
+            )
+        elif self.suno_quiz:
+            voice_channel = self.get_voice_channel()
+            if message.content == "!replay":
                 await self.play_audio(
                     voice_channel,
                     self.suno_quiz.song_path,
                     start_at=self.suno_quiz.start_time,
                     duration=self.suno_quiz.start_duration,
                 )
-                logging.info(
-                    f"Started suno voice quiz with voiceline: {self.suno_quiz.song_path}. The commands are: !skip, !replay, !giveup"
+            elif message.content == "!skip":
+                self.suno_quiz.start_duration += 1
+                self.suno_quiz.start_time -= 1
+                self.suno_quiz.hints += 1
+                await self.play_audio(
+                    voice_channel,
+                    self.suno_quiz.song_path,
+                    start_at=self.suno_quiz.start_time,
+                    duration=self.suno_quiz.start_duration,
                 )
-            elif self.suno_quiz and message.channel.name == "top":
-                voice_channel = self.get_voice_channel()
-                if message.content == "!replay":
-                    await self.play_audio(
-                        voice_channel,
-                        self.suno_quiz.song_path,
-                        start_at=self.suno_quiz.start_time,
-                        duration=self.suno_quiz.start_duration,
-                    )
-                elif message.content == "!skip":
-                    self.suno_quiz.start_duration += 1
-                    self.suno_quiz.start_time -= 1
-                    self.suno_quiz.hints += 1
-                    await self.play_audio(
-                        voice_channel,
-                        self.suno_quiz.song_path,
-                        start_at=self.suno_quiz.start_time,
-                        duration=self.suno_quiz.start_duration,
-                    )
-                elif message.content == "!giveup":
-                    await message.channel.send(
-                        f"The correct answer was {self.suno_quiz.song_name}. You used {self.suno_quiz.hints} hints"
-                    )
-                    await self.play_audio(voice_channel, self.suno_quiz.song_path)
-                    self.suno_quiz = None
+            elif message.content == "!giveup":
+                await message.channel.send(
+                    f"The correct answer was {self.suno_quiz.song_name}. You used {self.suno_quiz.hints} hints"
+                )
+                await self.play_audio(voice_channel, self.suno_quiz.song_path)
+                self.suno_quiz = None
 
     async def on_socket_raw_receive(self, msg: str):
         try:
@@ -343,7 +339,7 @@ class MyClient(discord.Client):
             if not event["d"]["channel_id"] == GENERAL_VOICE_CHANNEL_ID:
                 return
             entered_user_id = event["d"]["member"]["user"]["id"]
-            if entered_user_id == self.yaron_user_id:
+            if entered_user_id == UserIDs.yaron:
                 if len(self.get_voice_channel().members) < 1:
                     return
                 if current_hour <= 14 and current_hour >= 3:
@@ -356,7 +352,7 @@ class MyClient(discord.Client):
                         f"{YARON_MEDIA_VOICELINES_PATH}/homo.mp3",
                     )
 
-            elif entered_user_id == self.edan_user_id:
+            elif entered_user_id == UserIDs.edan:
                 if len(self.get_voice_channel().members) < 1:
                     return
                 if current_hour <= 14 and current_hour >= 3:
@@ -366,7 +362,7 @@ class MyClient(discord.Client):
                     await asyncio.sleep(3)
                     random_fart = f"{FARTS_PATH}/{random.choice([x for x in os.listdir(FARTS_PATH)])}"
                     await self.play_audio(self.get_voice_channel(), random_fart)
-            elif entered_user_id == self.guy_user_id:
+            elif entered_user_id == UserIDs.guy:
                 if len(self.get_voice_channel().members) < 1:
                     return
                 if current_hour <= 14 and current_hour >= 3:
