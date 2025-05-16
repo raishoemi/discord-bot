@@ -72,6 +72,7 @@ class MyClient(discord.Client):
         self.yaron_entered_today = False
         self.edan_entered_today = False
         self.guy_entered_today = False
+        self.voice_client: discord.VoiceClient = None
 
     def get_voice_channel(self) -> discord.VoiceChannel:
         for channel in self.get_all_channels():
@@ -86,31 +87,31 @@ class MyClient(discord.Client):
 
     async def play_audio(
         self,
-        voice_channel: discord.VoiceChannel,
         audio_path: str,
         after: Callable[[], None] = None,
         start_at: int = 0,
         duration: Optional[int] = None,
         stay_in_voice: bool = False,
     ):
-        voice_client: discord.VoiceClient = discord.utils.get(
+        voice_channel = self.get_voice_channel()
+        self.voice_client: discord.VoiceClient = discord.utils.get(
             self.voice_clients, guild=voice_channel.guild
         )
-        if not voice_client:
-            voice_client: discord.VoiceClient = await voice_channel.connect()
+        if not self.voice_client:
+            self.voice_client: discord.VoiceClient = await voice_channel.connect()
 
         def after_callback(e):
             if not stay_in_voice:
-                self.loop.create_task(voice_client.disconnect())
+                self.loop.create_task(self.voice_client.disconnect())
             self.loop.create_task(self.change_presence(activity=None))
-            if voice_client.is_connected() and after:
+            if self.voice_client.is_connected() and after:
                 after()
 
         if not duration:
             duration = 10000000
         if start_at < 0:
             start_at = 0
-        voice_client.play(
+        self.voice_client.play(
             discord.PCMVolumeTransformer(
                 discord.FFmpegPCMAudio(
                     executable="P:/Programs/ffmpeg/ffmpeg-4.4.1-essentials_build/bin/ffmpeg.exe",
@@ -127,7 +128,6 @@ class MyClient(discord.Client):
             pass
 
     async def play_random_suno_songs_with_autoplay(self, folder_name: str):
-        voice_channel = self.get_voice_channel()
         try:
             songs_path = f"{SUNO_MEDIA_VOICELINES_PATH}/{folder_name}"
             random_suno_song = (
@@ -138,7 +138,6 @@ class MyClient(discord.Client):
             await self.change_presence(activity=discord.Game(name=song_name))
 
             await self.play_audio(
-                voice_channel,
                 random_suno_song,
                 after=lambda: self.loop.create_task(
                     self.play_random_suno_songs_with_autoplay(folder_name)
@@ -152,7 +151,6 @@ class MyClient(discord.Client):
             pass
 
     async def play_random_voicelines(self):
-        voice_channel = self.get_voice_channel()
         while True:
             try:
                 sleep_random_offset = random.choice(
@@ -164,7 +162,7 @@ class MyClient(discord.Client):
 
                 # Play random voiceline
                 random_file = f"{RANDOM_MEDIA_VOICELINES_PATH}/{random.choice([x for x in os.listdir(RANDOM_MEDIA_VOICELINES_PATH)])}"
-                await self.play_audio(voice_channel, random_file)
+                await self.play_audio(random_file)
             except Exception as e:
                 logging.error(f"Error in play_random_voicelines loop: {e}")
                 pass
@@ -223,8 +221,7 @@ class MyClient(discord.Client):
                 correct_answer=correct_answer,
                 answers={},
             )
-            voice_channel = self.get_voice_channel()
-            await self.play_audio(voice_channel, self.voice_quiz.voiceline_path)
+            await self.play_audio(self.voice_quiz.voiceline_path)
             logging.info(
                 f"Started voice quiz with voiceline: {self.voice_quiz.voiceline_path}"
             )
@@ -232,8 +229,7 @@ class MyClient(discord.Client):
             author = message.author
             guess = message.content
             if guess == "!replay":
-                voice_channel = self.get_voice_channel()
-                await self.play_audio(voice_channel, self.voice_quiz.voiceline_path)
+                await self.play_audio(self.voice_quiz.voiceline_path)
             elif guess == "!giveup":
                 await message.channel.send(
                     f"The correct answer was {self.voice_quiz.correct_answer}"
@@ -280,9 +276,7 @@ class MyClient(discord.Client):
                 hints=0,
             )
             channel: discord.TextChannel = message.channel
-            voice_channel = self.get_voice_channel()
             await self.play_audio(
-                voice_channel,
                 self.suno_quiz.song_path,
                 start_at=self.suno_quiz.start_time,
                 duration=self.suno_quiz.start_duration,
@@ -291,10 +285,8 @@ class MyClient(discord.Client):
                 f"Started suno voice quiz with voiceline: {self.suno_quiz.song_path}. The commands are: !skip, !replay, !giveup"
             )
         elif self.suno_quiz:
-            voice_channel = self.get_voice_channel()
             if message.content == "!replay":
                 await self.play_audio(
-                    voice_channel,
                     self.suno_quiz.song_path,
                     start_at=self.suno_quiz.start_time,
                     duration=self.suno_quiz.start_duration,
@@ -304,7 +296,6 @@ class MyClient(discord.Client):
                 self.suno_quiz.start_time -= 1
                 self.suno_quiz.hints += 1
                 await self.play_audio(
-                    voice_channel,
                     self.suno_quiz.song_path,
                     start_at=self.suno_quiz.start_time,
                     duration=self.suno_quiz.start_duration,
@@ -313,7 +304,7 @@ class MyClient(discord.Client):
                 await message.channel.send(
                     f"The correct answer was {self.suno_quiz.song_name}. You used {self.suno_quiz.hints} hints"
                 )
-                await self.play_audio(voice_channel, self.suno_quiz.song_path)
+                await self.play_audio(self.suno_quiz.song_path)
                 self.suno_quiz = None
 
     async def on_socket_raw_receive(self, msg: str):
@@ -348,7 +339,6 @@ class MyClient(discord.Client):
                     self.yaron_entered_today = True
                     await asyncio.sleep(3)
                     await self.play_audio(
-                        self.get_voice_channel(),
                         f"{YARON_MEDIA_VOICELINES_PATH}/homo.mp3",
                     )
 
@@ -361,7 +351,7 @@ class MyClient(discord.Client):
                     self.edan_entered_today = True
                     await asyncio.sleep(3)
                     random_fart = f"{FARTS_PATH}/{random.choice([x for x in os.listdir(FARTS_PATH)])}"
-                    await self.play_audio(self.get_voice_channel(), random_fart)
+                    await self.play_audio(random_fart)
             elif entered_user_id == UserIDs.guy:
                 if len(self.get_voice_channel().members) < 1:
                     return
@@ -371,7 +361,6 @@ class MyClient(discord.Client):
                     self.guy_entered_today = True
                     await asyncio.sleep(3)
                     await self.play_audio(
-                        self.get_voice_channel(),
                         f"{GUY_MEDIA_VOICELINES_PATH}/not_guy_gay.mp3",
                     )
         except:
