@@ -73,6 +73,7 @@ class MyClient(discord.Client):
         self.edan_entered_today = False
         self.guy_entered_today = False
         self.voice_client: discord.VoiceClient = None
+        self.current_random_suno_songs_folder_name: str = None
 
     def get_voice_channel(self) -> discord.VoiceChannel:
         for channel in self.get_all_channels():
@@ -133,6 +134,7 @@ class MyClient(discord.Client):
             random_suno_song = (
                 f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
             )
+            self.current_random_suno_songs_folder_name = folder_name
 
             song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
             await self.change_presence(activity=discord.Game(name=song_name))
@@ -257,6 +259,11 @@ class MyClient(discord.Client):
                 return
             folder_name = message.content.split(" ")[1]
             await self.play_random_suno_songs_with_autoplay(folder_name)
+        
+        elif message.content == "!next":
+            if not self.voice_client or not self.voice_client.is_playing():
+                return
+            self.voice_client.stop()
 
         elif message.content == "!sunoquiz":
             if self.suno_quiz:
