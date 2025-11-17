@@ -119,7 +119,7 @@ class MyClient(discord.Client):
                     source=audio_path.encode("utf-8"),
                     before_options=f"-ss {start_at} -t {duration}",
                 ),
-                volume=0.1,
+                volume=0.2,
             ),
             after=after_callback,
         )
@@ -270,7 +270,7 @@ class MyClient(discord.Client):
                 await message.channel.send("Suno voice quiz already in progress")
                 return
             song_name = random.choice(
-                [x for x in os.listdir(SUNO_MEDIA_VOICELINES_PATH)]
+                [x for x in os.listdir(f'{SUNO_MEDIA_VOICELINES_PATH}/all')]
             )
             random_suno_song = f"{SUNO_MEDIA_VOICELINES_PATH}/{song_name}"
             audio_length = AudioSegment.from_file(random_suno_song).duration_seconds
