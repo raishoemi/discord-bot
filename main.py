@@ -128,12 +128,21 @@ class MyClient(discord.Client):
         except:
             pass
 
-    async def play_random_suno_songs_with_autoplay(self, folder_name: str):
+    async def play_random_suno_songs_with_autoplay(self, folder_name: str, play_newest=False):
         try:
             songs_path = f"{SUNO_MEDIA_VOICELINES_PATH}/{folder_name}"
-            random_suno_song = (
-                f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
-            )
+            
+            if play_newest:
+                # Get the newest file by modification time
+                files = [f for f in os.listdir(songs_path)]
+                file_paths = [os.path.join(songs_path, f) for f in files]
+                newest_file = max(file_paths, key=os.path.getmtime)
+                random_suno_song = newest_file
+            else:
+                random_suno_song = (
+                    f"{songs_path}/{random.choice([x for x in os.listdir(songs_path)])}"
+                )
+            
             self.current_random_suno_songs_folder_name = folder_name
 
             song_name = os.path.splitext(os.path.basename(random_suno_song))[0]
@@ -258,7 +267,7 @@ class MyClient(discord.Client):
                 await message.channel.send("Usage: !rs_auto <folder_name>")
                 return
             folder_name = message.content.split(" ")[1]
-            await self.play_random_suno_songs_with_autoplay(folder_name)
+            await self.play_random_suno_songs_with_autoplay(folder_name, True)
         
         elif message.content == "!next":
             if not self.voice_client or not self.voice_client.is_playing():
