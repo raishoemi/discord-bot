@@ -10,6 +10,7 @@ import time
 import discord
 from dotenv import load_dotenv
 from pydub import AudioSegment
+import yt_dlp
 
 
 load_dotenv()
@@ -216,6 +217,8 @@ class MyClient(discord.Client):
             if voice_client:
                 await voice_client.disconnect()
                 await self.change_presence(activity=None)
+            else:
+                logging.info("Zdayen command received, but bot is not in voice channel")
 
         elif message.content == "!lol":
             if self.voice_quiz:
@@ -273,6 +276,13 @@ class MyClient(discord.Client):
             if not self.voice_client or not self.voice_client.is_playing():
                 return
             self.voice_client.stop()
+        
+        elif message.content.startswith("!yt "):
+            youtube_url = message.content.split(" ", 1)[1]
+            try:
+                await self.play_youtube_audio(youtube_url)
+            except Exception as e:
+                await message.channel.send(f"Error playing YouTube audio: {e}")
 
         elif message.content == "!sunoquiz":
             if self.suno_quiz:
@@ -381,6 +391,83 @@ class MyClient(discord.Client):
                     )
         except:
             pass
+    
+    async def play_youtube_audio(
+        self,
+        youtube_url: str,
+        after: Callable[[], None] = None,
+        stay_in_voice: bool = False,
+    ):
+        """
+        Play audio from a YouTube URL in the voice channel.
+        
+        Args:
+            youtube_url: The YouTube URL to play audio from
+            after: Optional callback function to execute after playback
+            stay_in_voice: Whether to stay connected after playback
+        """
+        voice_channel = self.get_voice_channel()
+        self.voice_client: discord.VoiceClient = discord.utils.get(
+            self.voice_clients, guild=voice_channel.guild
+        )
+        if not self.voice_client:
+            self.voice_client: discord.VoiceClient = await voice_channel.connect()
+
+        def after_callback(e):
+            if e:
+                logging.error(f"Error in YouTube playback: {e}")
+            if not stay_in_voice:
+                self.loop.create_task(self.voice_client.disconnect())
+            self.loop.create_task(self.change_presence(activity=None))
+            if self.voice_client.is_connected() and after:
+                after()
+
+        # yt-dlp options for best audio quality
+        ytdl_format_options = {
+            'format': 'bestaudio/best',
+            'extractaudio': True,
+            'audioformat': 'mp3',
+            'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
+            'restrictfilenames': True,
+            'noplaylist': True,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'logtostderr': False,
+            'quiet': True,
+            'no_warnings': True,
+            'default_search': 'auto',
+            'source_address': '0.0.0.0',
+        }
+
+        ffmpeg_options = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
+
+        try:
+            
+            with yt_dlp.YoutubeDL(ytdl_format_options) as ydl:
+                info = ydl.extract_info(youtube_url, download=False)
+                audio_url = info['url']
+                video_title = info.get('title', 'Unknown')
+                
+                logging.info(f"Playing YouTube audio: {video_title}")
+                await self.change_presence(activity=discord.Game(name=video_title))
+                
+                self.voice_client.play(
+                    discord.PCMVolumeTransformer(
+                        discord.FFmpegPCMAudio(
+                            executable="P:/Programs/ffmpeg/ffmpeg-4.4.1-essentials_build/bin/ffmpeg.exe",
+                            source=audio_url,
+                            **ffmpeg_options,
+                        ),
+                        volume=0.2,
+                    ),
+                    after=after_callback,
+                )
+        except Exception as e:
+            logging.error(f"Error playing YouTube audio: {e}", exc_info=True)
+            raise
 
 
 def main():
