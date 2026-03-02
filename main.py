@@ -124,10 +124,6 @@ class MyClient(discord.Client):
             ),
             after=after_callback,
         )
-        try:
-            logging.info(f"Playing {audio_path}")
-        except:
-            pass
 
     async def play_random_suno_songs_with_autoplay(self, folder_name: str, play_newest=False):
         try:
@@ -439,17 +435,32 @@ class MyClient(discord.Client):
             'source_address': '0.0.0.0',
         }
 
-        ffmpeg_options = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
-        }
-
         try:
             
+            logging.info(f"Playing YouTube URL: {youtube_url}")
             with yt_dlp.YoutubeDL(ytdl_format_options) as ydl:
+                logging.debug("Extracting YouTube info...")
                 info = ydl.extract_info(youtube_url, download=False)
+
+                # Handle playlists — use first entry
+                if 'entries' in info:
+                    info = info['entries'][0]
+
                 audio_url = info['url']
                 video_title = info.get('title', 'Unknown')
+
+                # Forward yt-dlp's HTTP headers to FFmpeg to prevent 403 errors.
+                # YouTube signs stream URLs to the requesting context; without the
+                # matching headers FFmpeg gets rejected.
+                http_headers = info.get('http_headers', {})
+                headers_str = ''.join(f'{k}: {v}\r\n' for k, v in http_headers.items())
+                ffmpeg_options = {
+                    'before_options': (
+                        f'-headers "{headers_str}"'
+                        ' -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5'
+                    ),
+                    'options': '-vn',
+                }
                 
                 logging.info(f"Playing YouTube audio: {video_title}")
                 await self.change_presence(activity=discord.Game(name=video_title))
